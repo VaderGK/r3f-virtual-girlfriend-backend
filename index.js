@@ -33,7 +33,14 @@ function checkDependencies() {
 
     exec("rhubarb --version", (error, stdout) => {
         if (error) {
-            console.error("🚨 Rhubarb NIE jest zainstalowany!");
+            console.error("🚨 Rhubarb NIE jest zainstalowany! Pobieranie...");
+            exec("curl -L -o /usr/local/bin/rhubarb https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux && chmod +x /usr/local/bin/rhubarb", (installError) => {
+                if (installError) {
+                    console.error("❌ Nie udało się pobrać Rhubarb!", installError);
+                } else {
+                    console.log("✅ Rhubarb został pobrany!");
+                }
+            });
         } else {
             console.log("✅ Rhubarb działa:\n", stdout);
         }
@@ -65,6 +72,22 @@ app.get("/voices", async (req, res) => {
     res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
   }
 });
+
+/**
+ * ✅ Wykonywanie komend terminalowych
+ */
+const execCommand = (command) => {
+  return new Promise((resolve, reject) => {
+    exec(command, (error, stdout, stderr) => {
+      if (error) {
+        console.error("❌ Błąd wykonania komendy:", command, error);
+        reject(error);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+};
 
 /**
  * ✅ Generowanie mowy za pomocą ElevenLabs
@@ -116,12 +139,11 @@ const generateSpeech = async (text, fileName) => {
  * ✅ Generowanie lip sync + sprawdzanie błędów
  */
 const lipSyncMessage = async (message) => {
-  const time = new Date().getTime();
   console.log(`🔄 Rozpoczynam konwersję dla wiadomości: ${message}`);
 
   try {
     await execCommand(`ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`);
-    console.log(`✅ Konwersja do WAV zakończona w ${new Date().getTime() - time}ms`);
+    console.log(`✅ Konwersja do WAV zakończona`);
   } catch (error) {
     console.error("❌ Błąd w FFmpeg:", error);
     return null;
@@ -129,19 +151,13 @@ const lipSyncMessage = async (message) => {
 
   try {
     await execCommand(`rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`);
-    console.log(`✅ Lip sync zakończony w ${new Date().getTime() - time}ms`);
+    console.log(`✅ Lip sync zakończony`);
   } catch (error) {
     console.error("❌ Błąd w Rhubarb Lip Sync:", error);
     return null;
   }
 
-  try {
-    const lipsyncData = await readJsonTranscript(`audios/message_${message}.json`);
-    return lipsyncData;
-  } catch (error) {
-    console.error("❌ Błąd odczytu pliku JSON:", error);
-    return null;
-  }
+  return await readJsonTranscript(`audios/message_${message}.json`);
 };
 
 /**
@@ -159,7 +175,7 @@ app.post("/chat", async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model: "gpt-4o-mini",
       max_completion_tokens: 1000,
       temperature: 0.7,
       response_format: { type: "json_object" },
@@ -177,12 +193,8 @@ app.post("/chat", async (req, res) => {
     for (let i = 0; i < messages.length; i++) {
       const message = messages[i];
 
-      // Generate audio file
       const fileName = `audios/message_${i}.mp3`;
-      const textInput = message.text;
-      await generateSpeech(textInput, fileName);
-
-      // Generate lipsync
+      await generateSpeech(message.text, fileName);
       message.lipsync = await lipSyncMessage(i);
       message.audio = await audioFileToBase64(fileName);
     }
@@ -195,32 +207,6 @@ app.post("/chat", async (req, res) => {
   }
 });
 
-/**
- * ✅ Funkcje pomocnicze do obsługi plików
- */
-const readJsonTranscript = async (file) => {
-  try {
-    const data = await fs.readFile(file, "utf8");
-    return JSON.parse(data);
-  } catch (error) {
-    console.error(`❌ Błąd odczytu pliku JSON: ${file}`, error);
-    return null;
-  }
-};
-
-const audioFileToBase64 = async (file) => {
-  try {
-    const data = await fs.readFile(file);
-    return data.toString("base64");
-  } catch (error) {
-    console.error(`❌ Błąd odczytu pliku audio: ${file}`, error);
-    return null;
-  }
-};
-
-/**
- * ✅ Start serwera
- */
 app.listen(PORT, () => {
   console.log(`Virtual Girlfriend listening on port ${PORT}`);
 });
