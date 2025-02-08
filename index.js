@@ -36,6 +36,10 @@ const execCommand = (command) => {
   });
 };
 
+app.get("/api/status", (req, res) => {
+  res.json({ status: "ok", message: "Backend działa poprawnie!" });
+});
+
 const lipSyncMessage = async (message) => {
   const time = new Date().getTime();
   console.log(`🔄 Rozpoczynam konwersję dla wiadomości: ${message}`);
