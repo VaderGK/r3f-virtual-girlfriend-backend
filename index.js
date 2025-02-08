@@ -1,7 +1,7 @@
 import { exec } from "child_process";
 import cors from "cors";
 import dotenv from "dotenv";
-import voice from "elevenlabs-node";
+import fetch from "node-fetch";
 import express from "express";
 import { promises as fs } from "fs";
 import OpenAI from "openai";
@@ -12,7 +12,7 @@ const openai = new OpenAI({
 });
 
 const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
-const voiceID = "kgG7dCoKCfLehAPWkJOE";
+const voiceID = "EXAVITQu4vr4xnSDxMaL"; // Sprawdź, czy ten głos istnieje
 
 const app = express();
 app.use(express.json());
@@ -50,17 +50,66 @@ app.get("/api/status", (req, res) => {
   res.json({ status: "ok", message: "Backend działa poprawnie!" });
 });
 
+/**
+ * ✅ Pobieranie dostępnych głosów z ElevenLabs
+ */
 app.get("/voices", async (req, res) => {
-  res.send(await voice.getVoices(elevenLabsApiKey));
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v1/voices", {
+      headers: { "xi-api-key": elevenLabsApiKey },
+    });
+    const data = await response.json();
+    res.send(data.voices);
+  } catch (error) {
+    console.error("❌ Błąd pobierania głosów:", error);
+    res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
+  }
 });
 
-const execCommand = (command) => {
-  return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
-      if (error) reject(error);
-      resolve(stdout);
-    });
-  });
+/**
+ * ✅ Generowanie mowy za pomocą ElevenLabs
+ */
+const generateSpeech = async (text, fileName) => {
+    if (!elevenLabsApiKey) {
+        console.error("🚨 Błąd: Brak klucza API ElevenLabs!");
+        return null;
+    }
+
+    try {
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceID}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "xi-api-key": elevenLabsApiKey,
+            },
+            body: JSON.stringify({
+                text: text,
+                model_id: "eleven_multilingual_v2",
+                voice_settings: {
+                    stability: 0.5,
+                    similarity_boost: 0.5,
+                    style: 0.0,
+                    use_speaker_boost: true
+                }
+            }),
+        });
+
+        if (!response.ok) {
+            console.error(`❌ Błąd API ElevenLabs: ${response.status} - ${response.statusText}`);
+            const errorData = await response.json();
+            console.error("📝 Szczegóły błędu:", errorData);
+            return null;
+        }
+
+        const audioBuffer = await response.arrayBuffer();
+        await fs.writeFile(fileName, Buffer.from(audioBuffer));
+        console.log(`✅ Plik audio zapisany: ${fileName}`);
+
+        return fileName;
+    } catch (error) {
+        console.error("❌ Błąd połączenia z ElevenLabs API:", error);
+        return null;
+    }
 };
 
 /**
@@ -88,7 +137,6 @@ const lipSyncMessage = async (message) => {
 
   try {
     const lipsyncData = await readJsonTranscript(`audios/message_${message}.json`);
-    console.log("📄 Plik JSON z lipsyncem:", JSON.stringify(lipsyncData, null, 2));
     return lipsyncData;
   } catch (error) {
     console.error("❌ Błąd odczytu pliku JSON:", error);
@@ -97,7 +145,7 @@ const lipSyncMessage = async (message) => {
 };
 
 /**
- * ✅ Endpoint do czatu z obsługą błędów
+ * ✅ Endpoint do czatu
  */
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
@@ -111,22 +159,13 @@ app.post("/chat", async (req, res) => {
 
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo-1106",
-      max_tokens: 1000,
-      temperature: 0.6,
+      model: "gpt-4o",
+      max_completion_tokens: 1000,
+      temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
-        {
-          role: "system",
-          content: `
-          You are a virtual girlfriend.
-          You will always reply with a JSON array of messages. With a maximum of 3 messages.
-          Each message has a text, facialExpression, and animation property.
-          The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
-          The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
-          `,
-        },
-        { role: "user", content: userMessage || "Hello" },
+        { role: "system", content: "You will always reply with a JSON array of up to 3 messages, where each message has text, facialExpression (smile, sad, angry, surprised, funnyFace, default), and animation (Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, Angry) properties." },
+        { role: "user", content: userMessage },
       ],
     });
 
@@ -141,7 +180,7 @@ app.post("/chat", async (req, res) => {
       // Generate audio file
       const fileName = `audios/message_${i}.mp3`;
       const textInput = message.text;
-      await voice.textToSpeech(elevenLabsApiKey, voiceID, fileName, textInput);
+      await generateSpeech(textInput, fileName);
 
       // Generate lipsync
       message.lipsync = await lipSyncMessage(i);
