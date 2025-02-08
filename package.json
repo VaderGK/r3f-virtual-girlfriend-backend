@@ -6,9 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js --ext js"
+    "dev": "nodemon index.js --ext js",
+    "postinstall": "apt-get update && apt-get install -y ffmpeg && curl -L -o /usr/local/bin/rhubarb https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux && chmod +x /usr/local/bin/rhubarb"
   },
-  "author": "Wawa SENSEI <contact@wawasensei.dev>",
+  "author": "EFET.ai",
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
