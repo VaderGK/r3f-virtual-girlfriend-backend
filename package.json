@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js --ext js",
-    "postinstall": "apt-get update && apt-get install -y ffmpeg && curl -L -o /usr/local/bin/rhubarb https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux && chmod +x /usr/local/bin/rhubarb && rhubarb --version"
+    "postinstall": "apt-get update && apt-get install -y ffmpeg && curl -L -o /usr/local/bin/rhubarb https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux && chmod +x /usr/local/bin/rhubarb && /usr/local/bin/rhubarb --version || echo 'Rhubarb nie działa'"
+
   },
   "author": "EFET.ai",
   "dependencies": {
