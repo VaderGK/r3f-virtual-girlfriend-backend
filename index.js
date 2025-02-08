@@ -17,7 +17,7 @@ const voiceID = "kgG7dCoKCfLehAPWkJOE";
 const app = express();
 app.use(express.json());
 app.use(cors());
-const port = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -38,18 +38,34 @@ const execCommand = (command) => {
 
 const lipSyncMessage = async (message) => {
   const time = new Date().getTime();
-  console.log(`Starting conversion for message ${message}`);
-  await execCommand(
-    `ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`
-    // -y to overwrite the file
-  );
-  console.log(`Conversion done in ${new Date().getTime() - time}ms`);
-  await execCommand(
-    `./bin/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`
-  );
-  // -r phonetic is faster but less accurate
-  console.log(`Lip sync done in ${new Date().getTime() - time}ms`);
+  console.log(`🔄 Rozpoczynam konwersję dla wiadomości: ${message}`);
+
+  try {
+    await execCommand(
+      `ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`
+    );
+    console.log(`✅ Konwersja do WAV zakończona w ${new Date().getTime() - time}ms`);
+  } catch (error) {
+    console.error("❌ Błąd w FFmpeg:", error);
+  }
+
+  try {
+    await execCommand(
+      `./bin/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`
+    );
+    console.log(`✅ Lip sync zakończony w ${new Date().getTime() - time}ms`);
+  } catch (error) {
+    console.error("❌ Błąd w Rhubarb Lip Sync:", error);
+  }
+
+  try {
+    const lipsyncData = await readJsonTranscript(`audios/message_${message}.json`);
+    console.log("📄 Plik JSON z lipsyncem:", JSON.stringify(lipsyncData, null, 2));
+  } catch (error) {
+    console.error("❌ Błąd odczytu pliku JSON:", error);
+  }
 };
+
 
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
@@ -134,6 +150,7 @@ app.post("/chat", async (req, res) => {
     await lipSyncMessage(i);
     message.audio = await audioFileToBase64(fileName);
     message.lipsync = await readJsonTranscript(`audios/message_${i}.json`);
+    console.log(`📄 JSON lipsync dla wiadomości ${i}:`, JSON.stringify(message.lipsync, null, 2));
   }
 
   res.send({ messages });
@@ -149,6 +166,6 @@ const audioFileToBase64 = async (file) => {
   return data.toString("base64");
 };
 
-app.listen(port, () => {
-  console.log(`Virtual Girlfriend listening on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Virtual Girlfriend listening on port ${PORT}`);
 });
