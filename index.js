@@ -150,7 +150,7 @@ const lipSyncMessage = async (message) => {
   }
 
   try {
-    await execCommand(`/usr/local/bin/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`);
+    await execCommand(`/usr/local/bin/Rhubarb-Lip-Sync-1.13.0-Linux/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`);
     console.log(`✅ Lip sync zakończony`);
   } catch (error) {
     console.error("❌ Błąd w Rhubarb Lip Sync:", error);
