@@ -150,7 +150,7 @@ const lipSyncMessage = async (message) => {
   }
 
   try {
-    await execCommand(`rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`);
+    await execCommand(`/usr/local/bin/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`);
     console.log(`✅ Lip sync zakończony`);
   } catch (error) {
     console.error("❌ Błąd w Rhubarb Lip Sync:", error);
@@ -210,3 +210,14 @@ app.post("/chat", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Virtual Girlfriend listening on port ${PORT}`);
 });
+
+
+const audioFileToBase64 = async (file) => {
+  try {
+    const data = await fs.readFile(file);
+    return data.toString("base64");
+  } catch (error) {
+    console.error(`❌ Błąd odczytu pliku audio: ${file}`, error);
+    return null;
+  }
+};
