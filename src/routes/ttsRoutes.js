@@ -1,22 +1,16 @@
-import express from "express";
-import { generateSpeech } from "../services/ttsService.js";
-
+import express from 'express';
 const router = express.Router();
+import { getVoices } from '../services/ttsService.js';
 
-router.post("/", async (req, res) => {
-  const { text, fileName } = req.body;
-  if (!text || !fileName) {
-    return res.status(400).json({ error: "Brak wymaganych parametrów." });
-  }
 
-  try {
-    const audioFile = await generateSpeech(text, fileName);
-    if (!audioFile) throw new Error("Błąd generowania mowy.");
-    res.json({ success: true, file: audioFile });
-  } catch (error) {
-    console.error("❌ Błąd generowania mowy:", error);
-    res.status(500).json({ error: "Nie udało się wygenerować mowy." });
-  }
+router.get("/voices", async (req, res) => {
+    try {
+        const voices = await getVoices();
+        res.send(voices);
+    } catch (error) {
+        console.error("❌ Błąd pobierania głosów:", error);
+        res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
+    }
 });
 
 export default router;

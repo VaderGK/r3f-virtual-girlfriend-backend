@@ -1,16 +1,15 @@
-import express from "express";
-import cors from "cors";
-import chatRoutes from "./routes/chatRoutes.js";
-import ttsRoutes from "./routes/ttsRoutes.js";
-import statusRoutes from "./routes/statusRoutes.js";
+import express from 'express';
+const router = express.Router();
+import chatRoutes from './routes/chatRoutes.js';
+import ttsRoutes from './routes/ttsRoutes.js';
+import { checkDependencies } from './utils/execUtils.js';
 
-const app = express();
-app.use(express.json());
-app.use(cors());
+checkDependencies();
 
-// 📌 Podpięcie tras
-app.use("/chat", chatRoutes);
-app.use("/tts", ttsRoutes);
-app.use("/status", statusRoutes);
+router.get("/", (req, res) => res.send("Hello World!"));
 
-export default app;
+// Używamy routerów zdefiniowanych w innych plikach
+router.use('/', chatRoutes);
+router.use('/', ttsRoutes);
+
+export default router;
