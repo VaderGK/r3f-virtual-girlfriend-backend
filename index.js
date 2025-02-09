@@ -62,7 +62,7 @@ app.get("/api/status", (req, res) => {
  */
 app.get("/voices", async (req, res) => {
   try {
-    const response = await fetch("https://api.elevenlabs.io/v1/voices", {
+    const response = await fetch("https://api.elevenlabs.io/v1/voices?show_legacy=true", {
       headers: { "xi-api-key": elevenLabsApiKey },
     });
     const data = await response.json();
@@ -72,6 +72,7 @@ app.get("/voices", async (req, res) => {
     res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
   }
 });
+
 
 /**
  * ✅ Wykonywanie komend terminalowych
