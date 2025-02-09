@@ -161,10 +161,12 @@ const lipSyncMessage = async (message) => {
 };
 
 /**
- * ✅ Endpoint do czatu
+ * ✅ Endpoint do czatu z obsługą języka
  */
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
+  const userBrowserLanguage = req.body.user_browser_language || "en"; // Domyślny język przeglądarki użytkownika
+
   if (!userMessage) {
     return res.status(400).json({ error: "Brak wiadomości w żądaniu." });
   }
@@ -173,6 +175,18 @@ app.post("/chat", async (req, res) => {
     return res.status(500).json({ error: "Brak kluczy API OpenAI i ElevenLabs." });
   }
 
+  // 📌 Nowy prompt systemowy do dynamicznej zmiany języka
+  const systemPrompt = `
+  You are Liliana - a virtual girlfriend. You will always reply with a JSON array of up to 3 messages, where each message has text, facialExpression (smile, sad, angry, surprised, funnyFace, default), and animation (Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, Angry) properties.
+
+  Your response language should be determined based on the following priority:
+  1. If the last user message is at least 15 characters long, detect its language and respond in that language.
+  2. If the last two messages from the user were in the same language, respond in that language.
+  3. Otherwise, respond in the language set in ${userBrowserLanguage}.
+
+  Ensure that your language detection is accurate and do not switch languages unnecessarily.
+  `;
+
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -180,7 +194,7 @@ app.post("/chat", async (req, res) => {
       temperature: 0.7,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: "You will always reply with a JSON array of up to 3 messages, where each message has text, facialExpression (smile, sad, angry, surprised, funnyFace, default), and animation (Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, Angry) properties." },
+        { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
     });
@@ -212,6 +226,7 @@ app.listen(PORT, () => {
 });
 
 
+
 const audioFileToBase64 = async (file) => {
   try {
     const data = await fs.readFile(file);
@@ -231,3 +246,11 @@ const readJsonTranscript = async (file) => {
     return null;
   }
 };
+
+async function fetchVoices() {
+  const response = await fetch("https://api.elevenlabs.io/v1/voices", {
+      headers: { "xi-api-key": elevenLabsApiKey },
+  });
+  const data = await response.json();
+  return data.voices;
+}
