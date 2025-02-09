@@ -216,14 +216,23 @@ app.post("/chat", async (req, res) => {
       messages = messages.messages;
     }
 
-    for (let i = 0; i < messages.length; i++) {
-      const message = messages[i];
-
+    await Promise.all(messages.map(async (message, i) => {
       const fileName = `audios/message_${i}.mp3`;
-      await generateSpeech(message.text, fileName);
-      message.lipsync = await lipSyncMessage(i);
-      message.audio = await audioFileToBase64(fileName);
-    }
+    
+      // Generowanie mowy i synchronizacja ruchu warg odbywają się jednocześnie
+      const [audioFile, lipSyncData] = await Promise.all([
+        generateSpeech(message.text, fileName),
+        lipSyncMessage(i)
+      ]);
+    
+      // Odczytanie audio z pliku (również równolegle)
+      const audioBase64 = await audioFileToBase64(fileName);
+    
+      // Przypisanie wyników do obiektu wiadomości
+      message.lipsync = lipSyncData;
+      message.audio = audioBase64;
+    }));
+    
 
     res.send({ messages });
 
