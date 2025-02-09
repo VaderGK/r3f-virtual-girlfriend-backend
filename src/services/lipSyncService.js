@@ -29,7 +29,7 @@ const lipSyncMessage = async (messageIndex) => {
 
         // 2. Generowanie lip sync za pomocą Rhubarb
         console.log(`👄 Generating lip sync data: ${wavFileName} -> ${jsonFileName}`);
-        const rhubarbPath = '/usr/local/bin/rhubarb'; // ✅ Poprawiona ścieżka
+        const rhubarbPath = '/usr/local/bin/Rhubarb-Lip-Sync-1.13.0-Linux/rhubarb'; // ✅ Poprawiona ścieżka
         const rhubarbCommand = `${rhubarbPath} -f json -o ${jsonFileName} ${wavFileName} -r phonetic`;
         console.log(`⚙️ Wykonuję polecenie: ${rhubarbCommand}`);
 
