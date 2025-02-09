@@ -18,7 +18,7 @@ const openai = new OpenAI({
 
 
 const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
-const voiceID = "EXAVITQu4vr4xnSDxMaL"; // Sprawdź, czy ten głos istnieje
+const voiceID = "piTKgcLEGmPE4e6mEKli"; // Sprawdź, czy ten głos istnieje
 
 const app = express();
 app.use(express.json());
