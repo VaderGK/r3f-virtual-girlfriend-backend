@@ -105,6 +105,8 @@ const execCommand = (command) => {
  * ✅ Generowanie mowy za pomocą ElevenLabs
  */
 const generateSpeech = async (text, fileName) => {
+  await fs.unlink(fileName).catch(() => {}); // ✅ Usuwamy stary plik, żeby nie używać starego dźwięku
+
     if (!elevenLabsApiKey) {
         console.error("🚨 Błąd: Brak klucza API ElevenLabs!");
         return null;
@@ -215,23 +217,23 @@ app.post("/chat", async (req, res) => {
     if (messages.messages) {
       messages = messages.messages;
     }
-
+    
+    console.log("📝 Odpowiedź OpenAI:", messages); // ✅ Sprawdzamy, co zwraca OpenAI
+    
     await Promise.all(messages.map(async (message, i) => {
       const fileName = `audios/message_${i}.mp3`;
+      const text = message.text.trim(); // ✅ Upewniamy się, że tekst jest poprawny
     
-      // Generowanie mowy i synchronizacja ruchu warg odbywają się jednocześnie
-      const [audioFile, lipSyncData] = await Promise.all([
-        generateSpeech(message.text, fileName),
-        lipSyncMessage(i)
-      ]);
+      console.log(`🎤 Generowanie dźwięku dla tekstu: ${text}`); // ✅ Sprawdzamy, czy generujemy poprawny dźwięk
     
-      // Odczytanie audio z pliku (również równolegle)
+      const audioFile = await generateSpeech(text, fileName);
+      const lipSyncData = await lipSyncMessage(i);
       const audioBase64 = await audioFileToBase64(fileName);
     
-      // Przypisanie wyników do obiektu wiadomości
       message.lipsync = lipSyncData;
       message.audio = audioBase64;
     }));
+    
     
 
     res.send({ messages });
