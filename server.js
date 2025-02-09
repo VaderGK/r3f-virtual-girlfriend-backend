@@ -5,7 +5,7 @@ import cors from 'cors';
 import indexRoutes from './src/index.js'; // Importujemy router z src/index.js
 import statusRoutes from './src/routes/statusRoutes.js';
 
-dotenv.config();
+dotenv.config(); 
 
 const app = express();
 const PORT = process.env.PORT || 8080;
