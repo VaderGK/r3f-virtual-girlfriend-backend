@@ -7,187 +7,129 @@ import { promises as fs } from "fs";
 import OpenAI from "openai";
 dotenv.config();
 
-if (!process.env.OPENAI_API_KEY) {
-  console.error("🚨 Brak klucza API OpenAI!");
-  process.exit(1); // Zatrzymanie aplikacji, jeśli klucz nie istnieje
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY, 
-});
-
-
+// 🟢 API Keys i konfiguracja
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
-const voiceID = "XrExE9yKIg1WjnnlVkGX"; // Sprawdź, czy ten głos istnieje
+const cartesiaApiKey = process.env.CARTESIA_API_KEY;
+let defaultProvider = process.env.DEFAULT_TTS_PROVIDER || "elevenlabs";
+
+const voiceID = "XrExE9yKIg1WjnnlVkGX";
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 const PORT = process.env.PORT || 8000;
 
-/**
- * ✅ Sprawdzanie, czy `FFmpeg` i `Rhubarb` są dostępne
- */
+// 🛠️ Sprawdzanie zależności
 function checkDependencies() {
-    exec("ffmpeg -version", (error, stdout) => {
-        if (error) {
-            console.error("🚨 FFmpeg NIE jest zainstalowany!");
-        } else {
-            console.log("✅ FFmpeg działa:\n", stdout);
-        }
-    });
+  exec("ffmpeg -version", (error, stdout) => {
+      if (error) console.error("🚨 FFmpeg NIE jest zainstalowany!");
+      else console.log("✅ FFmpeg działa:\n", stdout);
+  });
 
-    const rhubarbPath = "/usr/local/bin/rhubarb";
-
-    exec("rhubarb --version", async (error, stdout) => {
+  const rhubarbPath = "/usr/local/bin/rhubarb";
+  exec("rhubarb --version", async (error, stdout) => {
       if (error) {
-        console.warn("🚨 Rhubarb NIE jest zainstalowany! Pobieranie...");
-    
-        try {
-          await execCommand(`curl -L -o ${rhubarbPath} https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux`);
-          await execCommand(`chmod +x ${rhubarbPath}`);
-          console.log("✅ Rhubarb został pobrany i jest gotowy do użycia.");
-        } catch (installError) {
-          console.error("❌ Nie udało się pobrać Rhubarb!", installError);
-        }
-      } else {
-        console.log("✅ Rhubarb działa:\n", stdout);
-      }
-    });
+          console.warn("🚨 Rhubarb NIE jest zainstalowany! Pobieranie...");
+          try {
+              await execCommand(`curl -L -o ${rhubarbPath} https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux`);
+              await execCommand(`chmod +x ${rhubarbPath}`);
+              console.log("✅ Rhubarb został pobrany.");
+          } catch (installError) {
+              console.error("❌ Nie udało się pobrać Rhubarb!", installError);
+          }
+      } else console.log("✅ Rhubarb działa:\n", stdout);
+  });
 }
-
 checkDependencies();
 
-app.get("/", (req, res) => {
-  res.send("Hello World!");
-});
+// 🟢 STATUS API
+app.get("/", (req, res) => res.send("Hello World!"));
+app.get("/api/status", (req, res) => res.json({ status: "ok", message: "Backend działa poprawnie!" }));
 
-app.get("/api/status", (req, res) => {
-  res.json({ status: "ok", message: "Backend działa poprawnie!" });
-});
-
-/**
- * ✅ Pobieranie dostępnych głosów z ElevenLabs
- */
+// 🟢 Pobieranie głosów
 app.get("/voices", async (req, res) => {
   try {
-    const response = await fetch("https://api.elevenlabs.io/v1/voices?show_legacy=true", {
-      headers: { "xi-api-key": elevenLabsApiKey },
-    });
-    const data = await response.json();
-    res.send(data.voices);
+      const response = await fetch("https://api.elevenlabs.io/v1/voices?show_legacy=true", { headers: { "xi-api-key": elevenLabsApiKey } });
+      const data = await response.json();
+      res.send(data.voices);
   } catch (error) {
-    console.error("❌ Błąd pobierania głosów:", error);
-    res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
+      console.error("❌ Błąd pobierania głosów:", error);
+      res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
   }
 });
 
-
-/**
- * ✅ Wykonywanie komend terminalowych
- */
-const execCommand = (command) => {
-  return new Promise((resolve, reject) => {
-    exec(command, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`❌ Błąd wykonania komendy: ${command}\n${stderr}`);
-        reject(error);
-      } else {
-        console.log(`✅ Wykonano: ${command}`);
-        resolve(stdout.trim());
-      }
-    });
-  });
-};
-
-
-/**
- * ✅ Generowanie mowy za pomocą ElevenLabs
- */
+// 🟢 Generowanie mowy (ElevenLabs lub Cartesia)
 const generateSpeech = async (text, fileName) => {
   console.log(`🎤 Generowanie mowy dla: ${text} -> ${fileName}`);
 
-  await fs.unlink(fileName).catch(() => {}); // ✅ Usuń stary plik, żeby nie używać starego dźwięku
+  await fs.unlink(fileName).catch(() => {});
 
-  if (!elevenLabsApiKey) {
-    console.error("🚨 Błąd: Brak klucza API ElevenLabs!");
-    return null;
-  }
-
-  try {
-    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceID}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "xi-api-key": elevenLabsApiKey,
-      },
-      body: JSON.stringify({
-        text: text,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5,
-          style: 0.0,
-          use_speaker_boost: true
-        }
-      }),
-    });
-
-    if (!response.ok) {
-      console.error(`❌ Błąd API ElevenLabs: ${response.status} - ${response.statusText}`);
-      const errorData = await response.json();
-      console.error("📝 Szczegóły błędu:", errorData);
-      return null;
+  if (defaultProvider === "elevenlabs") {
+    const result = await generateSpeechElevenLabs(text, fileName);
+    if (!result) {
+      console.warn("🔄 Przełączam na Cartesia...");
+      defaultProvider = "cartesia";
+      return await generateSpeechCartesia(text, fileName);
     }
-
-    const audioBuffer = await response.arrayBuffer();
-    await fs.writeFile(fileName, Buffer.from(audioBuffer));
-
-    console.log(`✅ Plik audio poprawnie zapisany: ${fileName}`);
-    return fileName;
-  } catch (error) {
-    console.error("❌ Błąd połączenia z ElevenLabs API:", error);
-    return null;
+    return result;
+  } else {
+    const result = await generateSpeechCartesia(text, fileName);
+    if (!result) {
+      console.warn("🔄 Przełączam na ElevenLabs...");
+      defaultProvider = "elevenlabs";
+      return await generateSpeechElevenLabs(text, fileName);
+    }
+    return result;
   }
 };
 
-
-/**
- * ✅ Generowanie lip sync + sprawdzanie błędów
- */
-const lipSyncMessage = async (message) => {
-  console.log(`🔄 Rozpoczynam konwersję dla wiadomości: ${message}`);
-
-  const mp3Path = `audios/message_${message}.mp3`;
-  const wavPath = `audios/message_${message}.wav`;
-  const jsonPath = `audios/message_${message}.json`;
-
-  // ✅ Sprawdzenie, czy plik mp3 istnieje, zanim użyjemy FFmpeg
+// ✅ ElevenLabs
+const generateSpeechElevenLabs = async (text, fileName) => {
   try {
-    await fs.access(mp3Path);
-  } catch (error) {
-    console.error(`❌ Plik ${mp3Path} nie istnieje, pomijam konwersję.`);
-    return null;
-  }
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceID}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "xi-api-key": elevenLabsApiKey },
+          body: JSON.stringify({
+              text, model_id: "eleven_multilingual_v2",
+              voice_settings: { stability: 0.5, similarity_boost: 0.5, style: 0.0, use_speaker_boost: true }
+          })
+      });
 
-  try {
-    await execCommand(`ffmpeg -y -i ${mp3Path} ${wavPath}`);
-    console.log(`✅ Konwersja do WAV zakończona`);
-  } catch (error) {
-    console.error("❌ Błąd w FFmpeg:", error);
-    return null;
-  }
+      if (!response.ok) throw new Error(`Błąd API ElevenLabs: ${response.status}`);
 
-  try {
-    await execCommand(`/usr/local/bin/Rhubarb-Lip-Sync-1.13.0-Linux/rhubarb -f json -o ${jsonPath} ${wavPath} -r phonetic`);
-    console.log(`✅ Lip sync zakończony`);
+      const audioBuffer = await response.arrayBuffer();
+      await fs.writeFile(fileName, Buffer.from(audioBuffer));
+      return fileName;
   } catch (error) {
-    console.error("❌ Błąd w Rhubarb Lip Sync:", error);
-    return null;
+      console.error("❌ Błąd ElevenLabs:", error);
+      return null;
   }
-
-  return await readJsonTranscript(jsonPath);
 };
+
+// ✅ Cartesia
+const generateSpeechCartesia = async (text, fileName) => {
+  try {
+      const response = await fetch(`https://api.cartesia.ai/v1/text-to-speech`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cartesiaApiKey}` },
+          body: JSON.stringify({
+              text, voice: "default", format: "wav",
+              encoding: "pcm_s16le", sample_rate: 16000
+          })
+      });
+
+      if (!response.ok) throw new Error(`Błąd API Cartesia: ${response.status}`);
+
+      const audioBuffer = await response.arrayBuffer();
+      await fs.writeFile(fileName, Buffer.from(audioBuffer));
+      return fileName;
+  } catch (error) {
+      console.error("❌ Błąd Cartesia:", error);
+      return null;
+  }
+};
+
 
 
 /**
@@ -237,7 +179,9 @@ app.post("/chat", async (req, res) => {
     console.log("📝 Odpowiedź OpenAI:", messages); // ✅ Sprawdzamy, co zwraca OpenAI
     
     await Promise.all(messages.map(async (message, i) => {
-      const fileName = `audios/message_${i}.mp3`;
+      const fileExtension = defaultProvider === "cartesia" ? "wav" : "mp3";
+      const fileName = `audios/message_${i}.${fileExtension}`;
+
       const text = message.text.trim();
     
       console.log(`🔍 Generowanie audio dla wiadomości ${i}: "${text}"`);
@@ -260,8 +204,7 @@ app.post("/chat", async (req, res) => {
       message.audio = audioBase64;
     }));
     
-    
-    
+  
 
     res.send({ messages });
 
