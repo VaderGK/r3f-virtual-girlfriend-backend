@@ -7,9 +7,15 @@ import { promises as fs } from "fs";
 import OpenAI from "openai";
 dotenv.config();
 
+if (!process.env.OPENAI_API_KEY) {
+  console.error("🚨 Brak klucza API OpenAI!");
+  process.exit(1); // Zatrzymanie aplikacji, jeśli klucz nie istnieje
+}
+
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "-", 
+  apiKey: process.env.OPENAI_API_KEY, 
 });
+
 
 const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY;
 const voiceID = "EXAVITQu4vr4xnSDxMaL"; // Sprawdź, czy ten głos istnieje
@@ -31,19 +37,22 @@ function checkDependencies() {
         }
     });
 
-    exec("rhubarb --version", (error, stdout) => {
-        if (error) {
-            console.error("🚨 Rhubarb NIE jest zainstalowany! Pobieranie...");
-            exec("curl -L -o /usr/local/bin/rhubarb https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux && chmod +x /usr/local/bin/rhubarb", (installError) => {
-                if (installError) {
-                    console.error("❌ Nie udało się pobrać Rhubarb!", installError);
-                } else {
-                    console.log("✅ Rhubarb został pobrany!");
-                }
-            });
-        } else {
-            console.log("✅ Rhubarb działa:\n", stdout);
+    const rhubarbPath = "/usr/local/bin/rhubarb";
+
+    exec("rhubarb --version", async (error, stdout) => {
+      if (error) {
+        console.warn("🚨 Rhubarb NIE jest zainstalowany! Pobieranie...");
+    
+        try {
+          await execCommand(`curl -L -o ${rhubarbPath} https://github.com/DanielSWolf/rhubarb-lip-sync/releases/latest/download/rhubarb-linux`);
+          await execCommand(`chmod +x ${rhubarbPath}`);
+          console.log("✅ Rhubarb został pobrany i jest gotowy do użycia.");
+        } catch (installError) {
+          console.error("❌ Nie udało się pobrać Rhubarb!", installError);
         }
+      } else {
+        console.log("✅ Rhubarb działa:\n", stdout);
+      }
     });
 }
 
@@ -81,14 +90,16 @@ const execCommand = (command) => {
   return new Promise((resolve, reject) => {
     exec(command, (error, stdout, stderr) => {
       if (error) {
-        console.error("❌ Błąd wykonania komendy:", command, error);
+        console.error(`❌ Błąd wykonania komendy: ${command}\n${stderr}`);
         reject(error);
       } else {
-        resolve(stdout);
+        console.log(`✅ Wykonano: ${command}`);
+        resolve(stdout.trim());
       }
     });
   });
 };
+
 
 /**
  * ✅ Generowanie mowy za pomocą ElevenLabs
@@ -249,9 +260,22 @@ const readJsonTranscript = async (file) => {
 };
 
 async function fetchVoices() {
-  const response = await fetch("https://api.elevenlabs.io/v1/voices", {
+  try {
+    const response = await fetch("https://api.elevenlabs.io/v1/voices?show_legacy=true", {
       headers: { "xi-api-key": elevenLabsApiKey },
-  });
-  const data = await response.json();
-  return data.voices;
+    });
+
+    if (!response.ok) {
+      console.error("❌ Błąd pobierania głosów:", response.status, response.statusText);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.voices || [];
+  } catch (error) {
+    console.error("❌ Błąd połączenia z ElevenLabs API:", error);
+    return [];
+  }
 }
+
+
