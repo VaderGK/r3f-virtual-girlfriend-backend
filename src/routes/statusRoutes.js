@@ -1,8 +1,14 @@
+import express from "express";
+
 const router = express.Router();
 
-// Tutaj dodaj swoje endpointy
-router.get("/status", (req, res) => {
-  res.json({ status: "ok", message: "Backend działa poprawnie!" });
+// 📌 Endpoint do sprawdzania statusu serwera
+router.get("/", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    message: "Backend działa poprawnie!", 
+    timestamp: new Date().toISOString() 
+  });
 });
 
-export default router; // <- Eksport jako domyślny
+export default router;
