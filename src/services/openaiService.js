@@ -21,6 +21,7 @@ const audioFileToBase64 = async (file) => {
 };
 
 export const generateChatResponse = async (body) => {
+    console.log("🔵 Rozpoczęto generateChatResponse", { body });
     const { message: userMessage, user_browser_language: userBrowserLanguage = "en" } = body;
 
     if (!userMessage) {
@@ -32,7 +33,10 @@ export const generateChatResponse = async (body) => {
     }
 
     const systemPrompt = `
-        You are Liliana - a virtual girlfriend. You will always reply with a JSON array of up to 3 messages, where each message has text, facialExpression (smile, sad, angry, surprised, funnyFace, default), and animation (Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, Angry) properties.
+        You are Liliana - a virtual girlfriend. You will always reply with a JSON array of messages. With a maximum of 3 messages.
+        Each message has a text, facialExpression, and animation property.
+        The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
+        The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, Angry) properties.
 
         Your response language should be determined based on the following priority:
         1. If the last user message is at least 15 characters long, detect its language and respond in that language.
@@ -59,13 +63,15 @@ export const generateChatResponse = async (body) => {
             messages = messages.messages;
         }
 
-        console.log("📝 Odpowiedź OpenAI:", messages);
+        console.log("🟢 Odpowiedź OpenAI:", { messages });
+        console.log(`⚙️ Tryb TTS: ${ttsMode}`);
 
         if (ttsMode === 'pro') {
             // ✅ Tryb PRO: Wywołaj TTS równocześnie (Promise.all)
             await Promise.all(messages.map(async (message, i) => {
                 try {
-                    const fileExtension = process.env.DEFAULT_TTS_PROVIDER === "cartesia" ? "mp3" : "mp3";
+                    console.log(`➡️ Przetwarzanie wiadomości ${i}: "${message.text}"`);
+                    const fileExtension = "mp3"; // Zmieniono na stale mp3
                     const fileName = `audios/message_${i}.${fileExtension}`;
 
                     const text = message.text.trim();
@@ -73,12 +79,12 @@ export const generateChatResponse = async (body) => {
                     console.log(`🔍 [PRO] Generowanie audio dla wiadomości ${i}: "${text}"`);
 
                     const audioFile = await generateSpeech(text, fileName);
+                    console.log(`🎵 Wygenerowano plik audio: ${audioFile}`);
 
                     if (!audioFile) {
                         console.error(`❌ [PRO] Nie udało się wygenerować audio dla wiadomości ${i}`);
                         return; // Przejdź do następnej iteracji
                     }
-
 
                     // ✅ Sprawdzenie, czy plik istnieje
                     try {
@@ -114,7 +120,8 @@ export const generateChatResponse = async (body) => {
             // ✅ Tryb ECO: Wywołaj TTS sekwencyjnie (pętla for...of)
             for (const [i, message] of messages.entries()) {
                 try {
-                    const fileExtension = process.env.DEFAULT_TTS_PROVIDER === "cartesia" ? "wav" : "mp3";
+                    console.log(`➡️ Przetwarzanie wiadomości ${i}: "${message.text}"`);
+                   const fileExtension = "mp3"; // Zmieniono na stale mp3
                     const fileName = `audios/message_${i}.${fileExtension}`;
 
                     const text = message.text.trim();
@@ -122,6 +129,7 @@ export const generateChatResponse = async (body) => {
                     console.log(`🔍 [ECO] Generowanie audio dla wiadomości ${i}: "${text}"`);
 
                     const audioFile = await generateSpeech(text, fileName);
+                    console.log(`🎵 Wygenerowano plik audio: ${audioFile}`);
 
                     if (!audioFile) {
                         console.error(`❌ [ECO] Nie udało się wygenerować audio dla wiadomości ${i}`);

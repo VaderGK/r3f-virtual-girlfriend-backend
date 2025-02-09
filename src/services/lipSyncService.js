@@ -8,27 +8,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const lipSyncMessage = async (messageIndex) => {
+    console.log(`🎶 Rozpoczęto lipSyncMessage: messageIndex=${messageIndex}`);
+
     const time = new Date().getTime();
     const mp3FileName = `audios/message_${messageIndex}.mp3`; // Zakładamy MP3
     const wavFileName = `audios/message_${messageIndex}.wav`;
     const jsonFileName = `audios/message_${messageIndex}.json`;
 
-    console.log(`🎤 Starting lip sync generation for message ${messageIndex}`);
+    console.log(`🔍 lipSyncMessage: mp3FileName="${mp3FileName}", wavFileName="${wavFileName}", jsonFileName="${jsonFileName}"`);
+
 
     try {
         // 1. Konwersja MP3 na WAV
         console.log(`🔄 Converting MP3 to WAV: ${mp3FileName} -> ${wavFileName}`);
-        await execCommand(`ffmpeg -y -i ${mp3FileName} ${wavFileName}`);
+        const ffmpegCommand = `ffmpeg -y -i ${mp3FileName} ${wavFileName}`;
+        console.log(`⚙️ Wykonuję polecenie: ${ffmpegCommand}`);
+
+        await execCommand(ffmpegCommand);
         console.log(`✅ Conversion done in ${new Date().getTime() - time}ms`);
 
         // 2. Generowanie lip sync za pomocą Rhubarb
         console.log(`👄 Generating lip sync data: ${wavFileName} -> ${jsonFileName}`);
         const rhubarbPath = path.join(__dirname, '..', '..', 'bin', 'rhubarb'); // Poprawiona ścieżka
-        await execCommand(`${rhubarbPath} -f json -o ${jsonFileName} ${wavFileName} -r phonetic`); // Poprawiona ścieżka
+        const rhubarbCommand = `${rhubarbPath} -f json -o ${jsonFileName} ${wavFileName} -r phonetic`;
+        console.log(`⚙️ Wykonuję polecenie: ${rhubarbCommand}`);
+
+        await execCommand(rhubarbCommand);
         console.log(`✅ Lip sync done in ${new Date().getTime() - time}ms`);
 
         // 3. Odczyt pliku JSON
+        console.log(`📖 Odczytuję plik JSON: ${jsonFileName}`);
         const lipSyncData = await readJsonTranscript(jsonFileName);
+
+        if (!lipSyncData) {
+            console.warn(`⚠️  Brak danych lip sync w pliku: ${jsonFileName}`);
+        }
+
+        console.log(`✔️ Dane lip sync odczytane pomyślnie`);
         return lipSyncData;
     } catch (error) {
         console.error(`❌ Błąd podczas generowania lip sync dla wiadomości ${messageIndex}:`, error);
@@ -38,8 +54,11 @@ const lipSyncMessage = async (messageIndex) => {
 
 const readJsonTranscript = async (file) => {
     try {
+        console.log(`📄 Próba odczytu pliku JSON: ${file}`);
         const data = await fs.readFile(file, "utf8");
-        return JSON.parse(data);
+        const jsonData = JSON.parse(data);
+        console.log(`✅ Plik JSON odczytany i sparsowany pomyślnie`);
+        return jsonData;
     } catch (error) {
         console.error(`❌ Błąd odczytu pliku JSON: ${file}`, error);
         return null;
