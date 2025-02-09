@@ -65,7 +65,7 @@ export const generateChatResponse = async (body) => {
             // ✅ Tryb PRO: Wywołaj TTS równocześnie (Promise.all)
             await Promise.all(messages.map(async (message, i) => {
                 try {
-                    const fileExtension = process.env.DEFAULT_TTS_PROVIDER === "cartesia" ? "wav" : "mp3";
+                    const fileExtension = process.env.DEFAULT_TTS_PROVIDER === "cartesia" ? "mp3" : "mp3";
                     const fileName = `audios/message_${i}.${fileExtension}`;
 
                     const text = message.text.trim();
