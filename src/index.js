@@ -1,16 +1,11 @@
-import express from "express";
-import cors from "cors";
-import chatRoutes from "./routes/chatRoutes.js";
-import ttsRoutes from "./routes/ttsRoutes.js";
-import statusRoutes from "./routes/statusRoutes.js";
+import dotenv from "dotenv";
+import app from "./src/index.js";
 
-const app = express();
-app.use(express.json());
-app.use(cors());
+dotenv.config();
 
-// Podpięcie tras
-app.use("/chat", chatRoutes);
-app.use("/tts", ttsRoutes);
-app.use("/status", statusRoutes);
+const PORT = process.env.PORT || 8000;
 
-export default app;
+// 🚀 Start serwera
+app.listen(PORT, () => {
+  console.log(`✅ Server is running on http://localhost:${PORT}`);
+});
