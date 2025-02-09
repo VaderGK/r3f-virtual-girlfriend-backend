@@ -15,25 +15,29 @@ export const generateSpeechCartesia = async (text, fileName) => {
         "Cartesia-Version": "2024-06-10",
       },
       body: JSON.stringify({
-        model_id: "sonic-english", // Można zmienić na inny dostępny model
+        model_id: "sonic", // Zmieniono na "sonic"
         transcript: text,
         voice: {
           mode: "id",
-          id: "575a5d29-1fdc-4d4e-9afa-5a9a71759864", // ID głosu, zmień jeśli potrzeba
+          id: "575a5d29-1fdc-4d4e-9afa-5a9a71759864"
         },
         output_format: {
-          container: "wav",
-          sample_rate: 22050,
-          encoding: "pcm_s16le",
+          container: "mp3", // Zmieniono na "mp3"
+          bit_rate: 128000, // Dodano bit_rate
+          sample_rate: 44100 // Dodano sample_rate
         },
-        language: "pl", // Można zmieniać dynamicznie
+        language: "pl"
       }),
     });
 
     if (!response.ok) {
       console.error(`❌ Błąd API Cartesia: ${response.status} - ${response.statusText}`);
-      const errorData = await response.json();
-      console.error("📝 Szczegóły błędu Cartesia:", errorData);
+      try {
+        const errorData = await response.json();
+        console.error("📝 Szczegóły błędu Cartesia:", errorData);
+      } catch (e) {
+        console.error("❌ Błąd parsowania JSON z odpowiedzi Cartesia:", e);
+      }
       return null;
     }
 
