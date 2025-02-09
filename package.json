@@ -2,7 +2,7 @@
   "name": "r3f-virtual-girlfriend-backend",
   "version": "1.0.0",
   "description": "Backend for the virtual girlfriend app",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
