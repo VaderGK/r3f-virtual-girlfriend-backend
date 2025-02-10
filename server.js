@@ -1,6 +1,6 @@
 // server.js
-// version 1.0.5
-// last change: poprawiona obsługa CORS dla frontendowej domeny
+// version 1.0.6
+// last change: obsługa CORS dla StackBlitz + produkcja
 
 import express from 'express';
 import dotenv from 'dotenv';
@@ -18,21 +18,33 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// 🌍 DOZWOLONA DOMENA FRONTENDU (dostosuj do swojej produkcji!)
-const ALLOWED_ORIGIN = 'https://agents.efekt.ai';
+// 🌍 DOZWOLONE DOMENY FRONTENDU (produkcja + testy StackBlitz)
+const ALLOWED_ORIGINS = [
+    'https://agents.efekt.ai',
+    /https:\/\/sb1b5q5eh3e-.*\.local-credentialless\.webcontainer\.io$/
+];
 
-// ✅ Middleware CORS (dostęp tylko dla produkcyjnego frontendu)
+// ✅ Middleware CORS (sprawdzamy dynamicznie)
 app.use(cors({
-    origin: ALLOWED_ORIGIN, 
+    origin: (origin, callback) => {
+        if (!origin || ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
+            callback(null, true);
+        } else {
+            console.log(`❌ Odrzucone połączenie CORS z niedozwolonego origin: ${origin}`);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
 }));
 
-// ✅ Serwowanie plików audio (potrzebne do działania TTS i lipsync)
+// ✅ Serwowanie plików audio (dodane nagłówki CORS)
 app.use('/audios', express.static(path.join(__dirname, 'audios'), {
-    setHeaders: (res) => {
-        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+    setHeaders: (res, req) => {
+        if (req.headers.origin && ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(req.headers.origin) : allowed === req.headers.origin)) {
+            res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+        }
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     }
@@ -47,13 +59,13 @@ const server = app.listen(PORT, () => {
     console.log(`🚀 Server działa na porcie ${PORT}`);
 });
 
-// 🌍 Obsługa WebSocket
+// 🌍 Obsługa WebSocket (sprawdzamy origin)
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
     const origin = req.headers.origin;
-    if (origin !== ALLOWED_ORIGIN) {
-        console.log(`❌ Odrzucone połączenie WebSocket z niedozwolonej domeny: ${origin}`);
+    if (!origin || !ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
+        console.log(`❌ Odrzucone połączenie WebSocket z niedozwolonego origin: ${origin}`);
         ws.close();
         return;
     }
