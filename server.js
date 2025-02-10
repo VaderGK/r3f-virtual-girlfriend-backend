@@ -1,12 +1,12 @@
 // server.js
-// version 1.0.4
-// last change: poprawiona obsługa CORS i serwowanie plików audio
+// version 1.0.5
+// last change: poprawiona obsługa CORS dla frontendowej domeny
 
 import express from 'express';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import { WebSocketServer } from 'ws';
-import path from 'path'; // 🔹 Dodane dla obsługi ścieżek plików
+import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Konwersja ścieżek dla ES6 modułów
@@ -18,20 +18,25 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+// 🌍 DOZWOLONA DOMENA FRONTENDU (dostosuj do swojej produkcji!)
+const ALLOWED_ORIGIN = 'https://agents.efekt.ai';
 
-// 🚀 Obsługa statycznych plików (np. audio)
-app.use('/audios', express.static(path.join(__dirname, 'audios')));
+// ✅ Middleware CORS (dostęp tylko dla produkcyjnego frontendu)
+app.use(cors({
+    origin: ALLOWED_ORIGIN, 
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
+}));
 
-// 🔹 Obsługa CORS dla plików audio
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*'); // Pozwól na pobieranie z każdego źródła
-    res.header('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-    next();
-});
+// ✅ Serwowanie plików audio (potrzebne do działania TTS i lipsync)
+app.use('/audios', express.static(path.join(__dirname, 'audios'), {
+    setHeaders: (res) => {
+        res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+    }
+}));
 
 // 📌 Importowanie tras API
 import indexRoutes from './src/index.js';
@@ -45,7 +50,14 @@ const server = app.listen(PORT, () => {
 // 🌍 Obsługa WebSocket
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+    const origin = req.headers.origin;
+    if (origin !== ALLOWED_ORIGIN) {
+        console.log(`❌ Odrzucone połączenie WebSocket z niedozwolonej domeny: ${origin}`);
+        ws.close();
+        return;
+    }
+
     console.log('📡 Połączono z WebSocket!');
     ws.send(JSON.stringify({ log: "👋 Witamy w systemie logowania przez WebSocket!" }));
 
