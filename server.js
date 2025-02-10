@@ -1,6 +1,6 @@
 // server.js
-// version 1.0.1
-// last change: dodano obsluge logow w websockets.
+// version 1.0.2
+// last change: poprawa wyswietlania Hello World
 
 import express from 'express';
 import dotenv from 'dotenv';
@@ -15,6 +15,11 @@ const PORT = process.env.PORT || 8080;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+import indexRoutes from './src/index.js'; // 🛠️ Dodaj import routera
+
+app.use('/', indexRoutes); // 🛠️ Użycie routera dla ścieżki głównej
+
 
 // WebSocket Server
 const wss = new WebSocketServer({ noServer: true });
