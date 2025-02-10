@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js --ext js",
-    "postinstall": "apt-get update && apt-get install -y ffmpeg unzip && curl -L -o /tmp/rhubarb.zip https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.13.0/Rhubarb-Lip-Sync-1.13.0-Linux.zip && unzip /tmp/rhubarb.zip -d /usr/local/bin/ && chmod +x /usr/local/bin/rhubarb && /usr/local/bin/rhubarb --version || echo 'Rhubarb nie działa'"
+    "postinstall": "node scripts/postinstall.js"
   },
   "author": "EFEKT.ai",
   "dependencies": {
