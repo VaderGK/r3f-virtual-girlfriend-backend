@@ -1,0 +1,190 @@
+STRUKTURA
+📁 audios
+│   ├── api_0.json
+│   ├── api_0.mp3
+│   ├── api_0.wav
+│   ├── api_1.json
+│   ├── api_1.mp3
+│   ├── api_1.wav
+│   ├── intro_0.json
+│   ├── intro_0.wav
+│   ├── intro_1.json
+│   ├── intro_1.wav
+│   ├── message_0.json
+│   ├── message_0.mp3
+│   ├── message_0.wav
+│   ├── message_1.json
+│   ├── message_1.mp3
+│   ├── message_1.wav
+│   ├── message_2.json
+│   ├── message_2.mp3
+│   └── message_2.wav
+│
+📁 src
+│   ├── 📁 routes
+│   │   ├── chatRoutes.js
+│   │   ├── statusRoutes.js
+│   │   └── ttsRoutes.js
+│   │
+│   ├── 📁 services
+│   │   ├── lipSyncService.js
+│   │   ├── openaiService.js
+│   │   ├── ttsCartesia.js
+│   │   ├── ttsElevenLabs.js
+│   │   └── ttsService.js
+│   │
+│   ├── 📁 utils
+│   │   ├── execUtils.js
+│   │   ├── fileUtils.js
+│   │   └── index.js
+│   │
+│   └── index.js
+│
+├── .env
+├── .env.example
+├── .gitignore
+├── package.json
+├── README.md
+└── server.js
+
+
+
+// server.js
+//version 1.0.0
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+
+import indexRoutes from './src/index.js'; // Importujemy router z src/index.js
+import statusRoutes from './src/routes/statusRoutes.js';
+
+dotenv.config(); 
+
+const app = express();
+const PORT = process.env.PORT || 8080;
+
+app.use(cors());
+app.use(express.json());
+
+// Używamy zaimportowanych routerów
+app.use('/', indexRoutes);
+app.use('/api/status', statusRoutes);
+
+app.listen(PORT, () => {
+    console.log(`Virtual Girlfriend listening on port ${PORT}`);
+});
+
+// package.json
+//version 1.0.0
+{
+  "name": "r3f-virtual-girlfriend-backend",
+  "version": "1.0.0",
+  "description": "Backend for the virtual girlfriend app",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js --ext js",
+    "postinstall": "apt-get update && apt-get install -y ffmpeg unzip && curl -L -o /tmp/rhubarb.zip https://github.com/DanielSWolf/rhubarb-lip-sync/releases/download/v1.13.0/Rhubarb-Lip-Sync-1.13.0-Linux.zip && unzip /tmp/rhubarb.zip -d /usr/local/bin/ && chmod +x /usr/local/bin/rhubarb && /usr/local/bin/rhubarb --version || echo 'Rhubarb nie działa'"
+  },
+  "author": "EFEKT.ai",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.26.0",
+    "node-fetch": "^3.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
+
+// src/index.js
+//version 1.0.0
+import express from 'express';
+const router = express.Router();
+import chatRoutes from './routes/chatRoutes.js';
+import ttsRoutes from './routes/ttsRoutes.js';
+import { checkDependencies } from './utils/execUtils.js';
+
+checkDependencies();
+
+router.get("/", (req, res) => res.send("Hello World!"));
+
+// Używamy routerów zdefiniowanych w innych plikach
+router.use('/', chatRoutes);
+router.use('/', ttsRoutes);
+
+export default router;
+
+// src/routes/chatRoutes.js
+import express from 'express';
+import { generateChatResponse } from '../services/openaiService.js';
+
+const router = express.Router();
+
+router.post("/chat", async (req, res) => {
+    try {
+        const response = await generateChatResponse(req.body);
+        res.send(response);
+    } catch (error) {
+        console.error("❌ Błąd podczas obsługi żądania czatu:", error);
+        res.status(500).json({ error: "Błąd podczas generowania odpowiedzi OpenAI." });
+    }
+});
+
+export default router;
+
+// src/routes/ttsRoutes.js
+//version 1.0.0
+import express from 'express';
+const router = express.Router();
+import { getVoices } from '../services/ttsService.js';
+
+router.get("/voices", async (req, res) => {
+    try {
+        const voices = await getVoices();
+        res.send(voices);
+    } catch (error) {
+        console.error("❌ Błąd pobierania głosów:", error);
+        res.status(500).json({ error: "Błąd pobierania głosów ElevenLabs." });
+    }
+});
+
+export default router;
+
+// src/services/openaiService.js
+import OpenAI from 'openai';
+import dotenv from 'dotenv';
+import { generateSpeech } from './ttsService.js';
+import { lipSyncMessage } from './lipSyncService.js';
+import { promises as fs } from 'fs';
+
+dotenv.config();
+
+const ttsMode = process.env.TTS_MODE || 'eco';
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const audioFileToBase64 = async (file) => {
+    try {
+        const data = await fs.readFile(file);
+        return data.toString("base64");
+    } catch (error) {
+        console.error(`❌ Błąd odczytu pliku audio: ${file}`, error);
+        return null;
+    }
+};
+
+// src/utils/fileUtils.js
+import fs from 'fs/promises';
+
+export const readJsonTranscript = async (file) => {
+  try {
+    const data = await fs.readFile(file, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    console.error(`❌ Błąd odczytu pliku JSON: ${file}`, error);
+    return null;
+  }
+};

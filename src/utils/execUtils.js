@@ -1,3 +1,4 @@
+// src/utils/execUtils.js
 import { exec as childProcessExec } from "child_process";
 
 export function checkDependencies() {

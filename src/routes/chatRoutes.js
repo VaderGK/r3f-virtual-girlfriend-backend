@@ -1,3 +1,4 @@
+// src/routes/chatRoutes.js
 import express from 'express';
 import { generateChatResponse } from '../services/openaiService.js';
 

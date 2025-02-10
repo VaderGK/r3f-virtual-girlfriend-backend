@@ -1,3 +1,4 @@
+// src/index.js
 import express from 'express';
 const router = express.Router();
 import chatRoutes from './routes/chatRoutes.js';
