@@ -1,6 +1,6 @@
 // server.js
-// version 1.1.0
-// last change: CAŁKOWITE USUNIĘCIE OGRANICZEŃ CORS + WebSocket
+// version 1.1.1
+// last change: Naprawiono `Content-Type` dla plików JSON i MP3
 
 import express from 'express';
 import dotenv from 'dotenv';
@@ -17,9 +17,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// ✅ Usunięcie ograniczeń CORS (każdy może się łączyć)
+// ✅ Brak ograniczeń CORS (dowolny dostęp)
 app.use(cors({
-    origin: "*", // 🟢 Pozwala na połączenia z każdego originu
+    origin: "*",
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true
@@ -28,11 +28,15 @@ app.use(cors({
 // ✅ Middleware do parsowania JSON w `req.body`
 app.use(express.json());
 
-// ✅ Serwowanie plików audio (dowolny dostęp)
+// ✅ Serwowanie plików audio i JSON z poprawnym `Content-Type`
 app.use('/audios', express.static(path.join(__dirname, 'audios'), {
-    setHeaders: (res) => {
-        res.setHeader('Access-Control-Allow-Origin', '*'); // 🟢 Zezwalamy na dostęp do plików audio z dowolnego miejsca
-        res.setHeader('Content-Type', 'audio/mpeg');
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.mp3')) {
+            res.setHeader('Content-Type', 'audio/mpeg'); // 🟢 MP3 poprawnie jako audio/mpeg
+        } else if (filePath.endsWith('.json')) {
+            res.setHeader('Content-Type', 'application/json'); // 🟢 JSON poprawnie jako application/json
+        }
+        res.setHeader('Access-Control-Allow-Origin', '*'); // 🔥 Dowolny dostęp
     }
 }));
 
