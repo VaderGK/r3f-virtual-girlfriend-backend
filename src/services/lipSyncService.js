@@ -1,4 +1,5 @@
 // src/services/lipSyncService.js
+// version 1.0.0
 import { execCommand } from '../utils/execUtils.js';
 import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';

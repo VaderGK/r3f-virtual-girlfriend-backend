@@ -1,4 +1,5 @@
 // src/index.js
+// version 1.0.0
 import express from 'express';
 const router = express.Router();
 import chatRoutes from './routes/chatRoutes.js';

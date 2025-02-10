@@ -1,4 +1,5 @@
 // src/utils/fileUtils.js
+// version 1.0.0
 import fs from 'fs/promises';
 
 export const readJsonTranscript = async (file) => {

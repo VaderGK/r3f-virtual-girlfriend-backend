@@ -1,4 +1,5 @@
 // src/services/openaiService.js
+// version 1.0.0
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { generateSpeech } from './ttsService.js';

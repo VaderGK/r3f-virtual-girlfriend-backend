@@ -1,4 +1,5 @@
 // src/utils/execUtils.js
+// version 1.0.0
 import { exec as childProcessExec } from "child_process";
 
 export function checkDependencies() {
