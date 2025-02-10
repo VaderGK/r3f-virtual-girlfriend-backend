@@ -53,8 +53,8 @@
 
 
 // server.js
-// version 1.0.6
-// last change: obsługa CORS dla StackBlitz + produkcja
+// version 1.0.7
+// last change: Poprawiona kolejność middleware'ów + poprawione CORS dla audio
 
 import express from 'express';
 import dotenv from 'dotenv';
@@ -63,7 +63,6 @@ import { WebSocketServer } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Konwersja ścieżek dla ES6 modułów
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -72,19 +71,19 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// 🌍 DOZWOLONE DOMENY FRONTENDU (produkcja + testy StackBlitz)
+// 🌍 DOZWOLONE DOMENY FRONTENDU
 const ALLOWED_ORIGINS = [
     'https://agents.efekt.ai',
     /https:\/\/sb1b5q5eh3e-.*\.local-credentialless\.webcontainer\.io$/
 ];
 
-// ✅ Middleware CORS (sprawdzamy dynamicznie)
+// ✅ Middleware CORS (Musi być PRZED użyciem JSON)
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
             callback(null, true);
         } else {
-            console.log(`❌ Odrzucone połączenie CORS z niedozwolonego origin: ${origin}`);
+            console.log(`❌ Odrzucone połączenie CORS z: ${origin}`);
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -93,33 +92,34 @@ app.use(cors({
     credentials: true
 }));
 
-// ✅ Serwowanie plików audio (dodane nagłówki CORS)
+// ✅ Teraz `express.json()` MUSI być przed routerami!
+app.use(express.json());
+
+// ✅ Serwowanie plików audio (CORS Fix)
 app.use('/audios', express.static(path.join(__dirname, 'audios'), {
     setHeaders: (res, req) => {
-        if (req.headers.origin && ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(req.headers.origin) : allowed === req.headers.origin)) {
-            res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
-        }
+        res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     }
 }));
 
-// 📌 Importowanie tras API
+// 📌 Importowanie tras API (Teraz JSON działa!)
 import indexRoutes from './src/index.js';
 app.use('/', indexRoutes);
 
-// 🚀 Tworzymy serwer HTTP
+// 🚀 Serwer HTTP
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server działa na porcie ${PORT}`);
 });
 
-// 🌍 Obsługa WebSocket (sprawdzamy origin)
+// 🌍 Obsługa WebSocket
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws, req) => {
     const origin = req.headers.origin;
     if (!origin || !ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
-        console.log(`❌ Odrzucone połączenie WebSocket z niedozwolonego origin: ${origin}`);
+        console.log(`❌ Odrzucone połączenie WebSocket z: ${origin}`);
         ws.close();
         return;
     }
@@ -136,17 +136,6 @@ wss.on('connection', (ws, req) => {
     });
 });
 
-// 🔍 Przechwytywanie `console.log` i wysyłanie do WebSocket
-const originalConsoleLog = console.log;
-console.log = (...args) => {
-    const message = args.join(' ');
-    wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) {
-            client.send(JSON.stringify({ log: message }));
-        }
-    });
-    originalConsoleLog(...args);
-};
 
 
 // 🔍 Przechwytywanie `console.log` i wysyłanie do WebSocket
@@ -355,11 +344,13 @@ const readJsonTranscript = async (file) => {
 export { lipSyncMessage }; 
 
 // src/services/openaiService.js
-// version 1.0.0
+// version 1.0.1
+// last change: Backend zwraca `audioUrl` zamiast base64 audio, optymalizacja logów
+
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { generateSpeech } from './ttsService.js';
-import { lipSyncMessage } from './lipSyncService.js'; // Załóżmy, że masz lipSyncService
+import { lipSyncMessage } from './lipSyncService.js';
 import { promises as fs } from 'fs';
 
 dotenv.config();
@@ -367,27 +358,11 @@ dotenv.config();
 const ttsMode = process.env.TTS_MODE || 'eco'; // Domyślnie tryb ECO
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const audioFileToBase64 = async (file) => {
-    try {
-        const data = await fs.readFile(file);
-        return data.toString("base64");
-    } catch (error) {
-        console.error(`❌ Błąd odczytu pliku audio: ${file}`, error);
-        return null;
-    }
-};
-
 export const generateChatResponse = async (body) => {
     console.log("🔵 Rozpoczęto generateChatResponse", { body });
+
     const { message: userMessage, user_browser_language: userBrowserLanguage = "en" } = body;
-
-    if (!userMessage) {
-        throw new Error("Brak wiadomości w żądaniu.");
-    }
-
-    if (!process.env.ELEVEN_LABS_API_KEY || !openai.apiKey) { // Poprawione sprawdzenie OpenAI API key
-        throw new Error("Brak kluczy API OpenAI i ElevenLabs.");
-    }
+    if (!userMessage) throw new Error("Brak wiadomości w żądaniu.");
 
     const systemPrompt = `
         You are Liliana - a virtual girlfriend. You will always reply with a JSON array of messages. With a maximum of 3 messages.
@@ -416,111 +391,49 @@ export const generateChatResponse = async (body) => {
         });
 
         let messages = JSON.parse(completion.choices[0].message.content);
-        if (messages.messages) {
-            messages = messages.messages;
-        }
+        if (messages.messages) messages = messages.messages;
 
         console.log("🟢 Odpowiedź OpenAI:", { messages });
         console.log(`⚙️ Tryb TTS: ${ttsMode}`);
 
-        if (ttsMode === 'pro') {
-            // ✅ Tryb PRO: Wywołaj TTS równocześnie (Promise.all)
-            await Promise.all(messages.map(async (message, i) => {
-                try {
-                    console.log(`➡️ Przetwarzanie wiadomości ${i}: "${message.text}"`);
-                    const fileExtension = "mp3"; // Zmieniono na stale mp3
-                    const fileName = `audios/message_${i}.${fileExtension}`;
+        // Przetwarzanie wiadomości
+        for (const [i, message] of messages.entries()) {
+            try {
+                console.log(`➡️ Przetwarzanie wiadomości ${i}: "${message.text}"`);
+                const fileExtension = "mp3";
+                const fileName = `audios/message_${i}.${fileExtension}`;
+                const text = message.text.trim();
 
-                    const text = message.text.trim();
+                console.log(`🔍 Generowanie audio dla wiadomości ${i}: "${text}"`);
+                const audioFile = await generateSpeech(text, fileName);
+                console.log(`🎵 Wygenerowano plik audio: ${audioFile}`);
 
-                    console.log(`🔍 [PRO] Generowanie audio dla wiadomości ${i}: "${text}"`);
-
-                    const audioFile = await generateSpeech(text, fileName);
-                    console.log(`🎵 Wygenerowano plik audio: ${audioFile}`);
-
-                    if (!audioFile) {
-                        console.error(`❌ [PRO] Nie udało się wygenerować audio dla wiadomości ${i}`);
-                        return; // Przejdź do następnej iteracji
-                    }
-
-                    // ✅ Sprawdzenie, czy plik istnieje
-                    try {
-                        await fs.access(fileName);
-                        console.log(`✅ [PRO] Plik istnieje: ${fileName}`);
-                    } catch (error) {
-                        console.error(`❌ [PRO] Plik NIE został zapisany: ${fileName}`);
-                        return; // Przejdź do następnej iteracji
-                    }
-
-                    const lipSyncData = await lipSyncMessage(i);
-
-                    if (!lipSyncData) {
-                        console.warn(`⚠️  [PRO] Brak danych lip sync dla wiadomości ${i}`);
-                        return;
-                    }
-
-                    const audioBase64 = await audioFileToBase64(fileName);
-
-                    if (!audioBase64) {
-                        console.error(`❌ [PRO] Błąd konwersji audio do base64 dla wiadomości ${i}`);
-                        return;
-                    }
-
-
-                    message.lipsync = lipSyncData;
-                    message.audio = audioBase64;
-                } catch (error) {
-                    console.error(`❌ [PRO] Błąd podczas przetwarzania wiadomości ${i}:`, error);
+                if (!audioFile) {
+                    console.error(`❌ Nie udało się wygenerować audio dla wiadomości ${i}`);
+                    continue;
                 }
-            }));
-        } else {
-            // ✅ Tryb ECO: Wywołaj TTS sekwencyjnie (pętla for...of)
-            for (const [i, message] of messages.entries()) {
+
+                // ✅ Sprawdzenie, czy plik istnieje
                 try {
-                    console.log(`➡️ Przetwarzanie wiadomości ${i}: "${message.text}"`);
-                   const fileExtension = "mp3"; // Zmieniono na stale mp3
-                    const fileName = `audios/message_${i}.${fileExtension}`;
-
-                    const text = message.text.trim();
-
-                    console.log(`🔍 [ECO] Generowanie audio dla wiadomości ${i}: "${text}"`);
-
-                    const audioFile = await generateSpeech(text, fileName);
-                    console.log(`🎵 Wygenerowano plik audio: ${audioFile}`);
-
-                    if (!audioFile) {
-                        console.error(`❌ [ECO] Nie udało się wygenerować audio dla wiadomości ${i}`);
-                        continue; // Przejdź do następnej wiadomości
-                    }
-
-                    // ✅ Sprawdzenie, czy plik istnieje
-                    try {
-                        await fs.access(fileName);
-                        console.log(`✅ [ECO] Plik istnieje: ${fileName}`);
-                    } catch (error) {
-                        console.error(`❌ [ECO] Plik NIE został zapisany: ${fileName}`);
-                        continue; // Przejdź do następnej wiadomości
-                    }
-
-                    const lipSyncData = await lipSyncMessage(i);
-                    if (!lipSyncData) {
-                        console.warn(`⚠️  [ECO] Brak danych lip sync dla wiadomości ${i}`);
-                        continue;
-                    }
-
-
-                    const audioBase64 = await audioFileToBase64(fileName);
-
-                    if (!audioBase64) {
-                        console.error(`❌ [ECO] Błąd konwersji audio do base64 dla wiadomości ${i}`);
-                        continue;
-                    }
-
-                    message.lipsync = lipSyncData;
-                    message.audio = audioBase64;
+                    await fs.access(fileName);
+                    console.log(`✅ Plik istnieje: ${fileName}`);
                 } catch (error) {
-                    console.error(`❌ [ECO] Błąd podczas przetwarzania wiadomości ${i}:`, error);
+                    console.error(`❌ Plik NIE został zapisany: ${fileName}`);
+                    continue;
                 }
+
+                // 🔍 Generowanie lip sync
+                const lipSyncData = await lipSyncMessage(i);
+                if (!lipSyncData) {
+                    console.warn(`⚠️ Brak danych lip sync dla wiadomości ${i}`);
+                    continue;
+                }
+
+                // 📡 Zwracanie URL zamiast base64
+                message.lipsync = lipSyncData;
+                message.audioUrl = `https://r3f-virtual-girlfriend-backend-production.up.railway.app/audios/message_${i}.mp3`;
+            } catch (error) {
+                console.error(`❌ Błąd podczas przetwarzania wiadomości ${i}:`, error);
             }
         }
 
@@ -531,6 +444,7 @@ export const generateChatResponse = async (body) => {
         throw new Error("Błąd podczas generowania odpowiedzi OpenAI.");
     }
 };
+
 
 
 // src/services/ttsCartesia.js
