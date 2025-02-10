@@ -5,7 +5,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { generateSpeech } from './ttsService.js';
-import { lipSyncMessage } from './lipSyncService.js';
+import { lipSyncMessage } from './lipSyncService.js'; 
 import { promises as fs } from 'fs';
 
 dotenv.config();

@@ -343,7 +343,7 @@ const readJsonTranscript = async (file) => {
 
 export { lipSyncMessage }; 
 
-// src/services/openaiService.js
+// src/services/openaiService.js 
 // version 1.0.1
 // last change: Backend zwraca `audioUrl` zamiast base64 audio, optymalizacja logów
 
