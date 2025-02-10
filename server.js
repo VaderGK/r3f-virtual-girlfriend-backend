@@ -1,6 +1,6 @@
 // server.js
-// version 1.0.8
-// last change: Poprawiona obsługa WebSocket - dodano heartbeat (ping)
+// version 1.0.9
+// last change: Dodano `express.json()` dla poprawnej obsługi `req.body`
 
 import express from 'express';
 import dotenv from 'dotenv';
@@ -22,6 +22,7 @@ const ALLOWED_ORIGINS = [
     /https:\/\/sb1b5q5eh3e-.*\.local-credentialless\.webcontainer\.io$/
 ];
 
+// ✅ Middleware CORS
 app.use(cors({
     origin: (origin, callback) => {
         if (!origin || ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(origin) : allowed === origin)) {
@@ -36,6 +37,10 @@ app.use(cors({
     credentials: true
 }));
 
+// ✅ Middleware do parsowania JSON w `req.body`
+app.use(express.json());
+
+// ✅ Serwowanie plików audio
 app.use('/audios', express.static(path.join(__dirname, 'audios'), {
     setHeaders: (res, req) => {
         if (req.headers.origin && ALLOWED_ORIGINS.some(allowed => allowed instanceof RegExp ? allowed.test(req.headers.origin) : allowed === req.headers.origin)) {
@@ -43,18 +48,19 @@ app.use('/audios', express.static(path.join(__dirname, 'audios'), {
         }
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
-        res.setHeader('Content-Type', 'audio/mpeg'); // 👈 Dodane!
+        res.setHeader('Content-Type', 'audio/mpeg');
     }
 }));
-
 
 import indexRoutes from './src/index.js';
 app.use('/', indexRoutes);
 
+// 🚀 Tworzymy serwer HTTP
 const server = app.listen(PORT, () => {
     console.log(`🚀 Server działa na porcie ${PORT}`);
 });
 
+// 🌍 Obsługa WebSocket z heartbeat (ping)
 const wss = new WebSocketServer({ server });
 
 const heartbeatInterval = 30000; // Ping co 30 sekund
