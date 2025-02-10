@@ -1,3 +1,4 @@
+STRUKTURA BACKEND (railway)
 📁 audios
 │   ├── api_0.json
 │   ├── api_0.mp3 
@@ -40,7 +41,7 @@
 │   └── index.js
 │
 📁 scripts
-│   └── postinstall.js  <-- (🆕 Nowy plik!)
+│   └── postinstall.js
 │
 ├── .env
 ├── .env.example
