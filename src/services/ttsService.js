@@ -10,7 +10,6 @@ dotenv.config();
 
 let defaultProvider = process.env.DEFAULT_TTS_PROVIDER || "elevenlabs";
 
-import fs from 'fs/promises';
 
 export const generateSpeech = async (text, fileName) => {
     console.log(`🎤 Rozpoczęto generateSpeech: text="${text}", fileName="${fileName}"`);
