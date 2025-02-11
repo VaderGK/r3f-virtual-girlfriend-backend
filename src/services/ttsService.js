@@ -10,41 +10,63 @@ dotenv.config();
 
 let defaultProvider = process.env.DEFAULT_TTS_PROVIDER || "elevenlabs";
 
+import fs from 'fs/promises';
+
 export const generateSpeech = async (text, fileName) => {
     console.log(`🎤 Rozpoczęto generateSpeech: text="${text}", fileName="${fileName}"`);
     console.log(`⚙️ Aktualny defaultProvider: ${defaultProvider}`);
 
     try {
-        //await fs.unlink(fileName).catch(() => { }); // Pomijamy usuwanie pliku na początku
+        let result = null;
 
         if (defaultProvider === "elevenlabs") {
+            console.log("📁 Generowanie pliku MP3:", fileName);
             console.log(`🗣️ Wywołuję generateSpeechElevenLabs: text="${text}", fileName="${fileName}"`);
-            const result = await generateSpeechElevenLabs(text, fileName);
+            result = await generateSpeechElevenLabs(text, fileName);
             console.log(`✔️ generateSpeechElevenLabs zwróciło: ${result}`);
+            
             if (!result) {
                 console.warn("⚠️  generateSpeechElevenLabs nie powiodło się. Przełączam na Cartesia...");
                 defaultProvider = "cartesia";
                 console.log(`🗣️ Wywołuję generateSpeechCartesia: text="${text}", fileName="${fileName}"`);
-                return await generateSpeechCartesia(text, fileName);
+                result = await generateSpeechCartesia(text, fileName);
             }
-            return result;
         } else {
+            console.log("📁 Generowanie pliku MP3:", fileName);
             console.log(`🗣️ Wywołuję generateSpeechCartesia: text="${text}", fileName="${fileName}"`);
-            const result = await generateSpeechCartesia(text, fileName);
+            result = await generateSpeechCartesia(text, fileName);
             console.log(`✔️ generateSpeechCartesia zwróciło: ${result}`);
+
             if (!result) {
                 console.warn("🔄 generateSpeechCartesia nie powiodło się. Przełączam na ElevenLabs...");
                 defaultProvider = "elevenlabs";
                 console.log(`🗣️ Wywołuję generateSpeechElevenLabs: text="${text}", fileName="${fileName}"`);
-                return await generateSpeechElevenLabs(text, fileName);
+                result = await generateSpeechElevenLabs(text, fileName);
             }
-            return result;
         }
+
+        if (!result) {
+            console.error("❌ Generowanie dźwięku nie powiodło się w obu providerach!");
+            return null;
+        }
+
+        // ✅ SPRAWDZENIE CZY PLIK ZOSTAŁ UTWORZONY
+        try {
+            await fs.access(fileName);
+            console.log(`✅ Plik MP3 został poprawnie zapisany: ${fileName}`);
+        } catch (err) {
+            console.error(`❌ Plik MP3 NIE ISTNIEJE! Możliwe problemy z zapisem: ${fileName}`, err);
+            return null;
+        }
+
+        return result;
+
     } catch (error) {
         console.error("❌ Błąd w generateSpeech:", error);
         return null;
     }
 };
+
 
 export async function getVoices() {
     try {
